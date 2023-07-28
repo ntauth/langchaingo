@@ -8,6 +8,7 @@ const (
 type options struct {
 	token string
 	model string
+	url   string
 }
 
 type Option func(*options)
@@ -25,5 +26,13 @@ func WithToken(token string) Option {
 func WithModel(model string) Option {
 	return func(opts *options) {
 		opts.model = model
+	}
+}
+
+// WithURL passes the HuggingFace inference endpoint URL to the client. If not set, then will be
+// used inference (not inference endpoint) API.
+func WithURL(url string) Option {
+	return func(opts *options) {
+		opts.url = url
 	}
 }
