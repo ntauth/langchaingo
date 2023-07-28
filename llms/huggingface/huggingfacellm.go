@@ -82,7 +82,7 @@ func New(opts ...Option) (*LLM, error) {
 		return nil, ErrMissingToken
 	}
 
-	c, err := huggingfaceclient.New(options.token, options.model)
+	c, err := huggingfaceclient.New(options.token, options.model, options.url)
 	if err != nil {
 		return nil, err
 	}

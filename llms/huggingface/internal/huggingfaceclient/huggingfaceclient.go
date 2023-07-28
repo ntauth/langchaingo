@@ -17,14 +17,18 @@ type Client struct {
 	url   string
 }
 
-func New(token string, model string) (*Client, error) {
+func New(token string, model string, url string) (*Client, error) {
 	if token == "" {
 		return nil, ErrInvalidToken
 	}
+	if url == "" {
+		url = hfInferenceAPI
+	}
+
 	return &Client{
 		Token: token,
 		Model: model,
-		url:   hfInferenceAPI,
+		url:   url,
 	}, nil
 }
 
