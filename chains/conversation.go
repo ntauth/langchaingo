@@ -15,15 +15,51 @@ Current conversation:
 Human: {{.input}}
 AI:`
 
-func NewConversation(llm llms.LanguageModel, memory schema.Memory) LLMChain {
-	return LLMChain{
-		Prompt: prompts.NewPromptTemplate(
+type ConversationOptions struct {
+	Template     prompts.PromptTemplate
+	OutputKey    string
+	OutputParser schema.OutputParser[any]
+}
+
+type ConversationOption func(opts *ConversationOptions)
+
+func WithConversationOptionTemplate(tpl prompts.PromptTemplate) ConversationOption {
+	return func(opts *ConversationOptions) {
+		opts.Template = tpl
+	}
+}
+
+func WithConversationOptionOutputKey(key string) ConversationOption {
+	return func(opts *ConversationOptions) {
+		opts.OutputKey = key
+	}
+}
+
+func WithConversationOptionOutputParser(parser schema.OutputParser[any]) ConversationOption {
+	return func(opts *ConversationOptions) {
+		opts.OutputParser = parser
+	}
+}
+
+func NewConversation(llm llms.LanguageModel, memory schema.Memory, opts ...ConversationOption) LLMChain {
+	opts_ := &ConversationOptions{
+		Template: prompts.NewPromptTemplate(
 			_conversationTemplate,
 			[]string{"history", "input"},
 		),
+		OutputKey:    _llmChainDefaultOutputKey,
+		OutputParser: outputparser.NewSimple(),
+	}
+
+	for _, opt := range opts {
+		opt(opts_)
+	}
+
+	return LLMChain{
+		Prompt:       opts_.Template,
 		LLM:          llm,
 		Memory:       memory,
-		OutputParser: outputparser.NewSimple(),
-		OutputKey:    _llmChainDefaultOutputKey,
+		OutputParser: opts_.OutputParser,
+		OutputKey:    opts_.OutputKey,
 	}
 }
