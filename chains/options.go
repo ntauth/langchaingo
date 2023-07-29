@@ -13,7 +13,9 @@ type chainCallOption struct {
 	// Model is the model to use in an llm call.
 	Model string
 	// MaxTokens is the maximum number of tokens to generate to use in an llm call.
-	MaxTokens int
+	MaxTokens    int
+	MaxNewTokens int
+	DoSample     bool
 	// Temperature is the temperature for sampling to use in an llm call, between 0 and 1.
 	Temperature float64
 	// StopWords is a list of words to stop on to use in an llm call.
@@ -46,6 +48,18 @@ func WithModel(model string) ChainCallOption {
 func WithMaxTokens(maxTokens int) ChainCallOption {
 	return func(o *chainCallOption) {
 		o.MaxTokens = maxTokens
+	}
+}
+
+func WithMaxNewTokens(maxNewTokens int) ChainCallOption {
+	return func(o *chainCallOption) {
+		o.MaxNewTokens = maxNewTokens
+	}
+}
+
+func WithDoSample() ChainCallOption {
+	return func(o *chainCallOption) {
+		o.DoSample = true
 	}
 }
 
@@ -128,6 +142,7 @@ func getLLMCallOptions(options ...ChainCallOption) []llms.CallOption {
 	chainCallOption := []llms.CallOption{
 		llms.WithModel(opts.Model),
 		llms.WithMaxTokens(opts.MaxTokens),
+		llms.WithMaxNewTokens(opts.MaxNewTokens),
 		llms.WithTemperature(opts.Temperature),
 		llms.WithStopWords(opts.StopWords),
 		llms.WithStreamingFunc(opts.StreamingFunc),
@@ -136,6 +151,9 @@ func getLLMCallOptions(options ...ChainCallOption) []llms.CallOption {
 		llms.WithMinLength(opts.MinLength),
 		llms.WithMaxLength(opts.MaxLength),
 		llms.WithRepetitionPenalty(opts.RepetitionPenalty),
+	}
+	if opts.DoSample {
+		chainCallOption = append(chainCallOption, llms.WithDoSample())
 	}
 
 	return chainCallOption

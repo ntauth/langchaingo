@@ -45,12 +45,15 @@ func (o *LLM) Generate(ctx context.Context, prompts []string, options ...llms.Ca
 		Prompt:            prompts[0],
 		Task:              huggingfaceclient.InferenceTaskTextGeneration,
 		Temperature:       opts.Temperature,
+		MaxNewTokens:      opts.MaxNewTokens,
+		DoSample:          opts.DoSample,
 		TopP:              opts.TopP,
 		TopK:              opts.TopK,
 		MinLength:         opts.MinLength,
 		MaxLength:         opts.MaxLength,
 		RepetitionPenalty: opts.RepetitionPenalty,
 		Seed:              opts.Seed,
+		StopWords:         opts.StopWords,
 	})
 	if err != nil {
 		return nil, err

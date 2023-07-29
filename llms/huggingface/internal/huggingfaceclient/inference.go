@@ -27,13 +27,16 @@ type inferencePayload struct {
 }
 
 type parameters struct {
-	Temperature       float64 `json:"temperature,omitempty"`
-	TopP              float64 `json:"top_p,omitempty"`
-	TopK              int     `json:"top_k,omitempty"`
-	MinLength         int     `json:"min_length,omitempty"`
-	MaxLength         int     `json:"max_length,omitempty"`
-	RepetitionPenalty float64 `json:"repetition_penalty,omitempty"`
-	Seed              int     `json:"seed,omitempty"`
+	Temperature       float64  `json:"temperature,omitempty"`
+	MaxNewTokens      int      `json:"max_new_tokens"`
+	DoSample          bool     `json:"do_sample"`
+	TopP              float64  `json:"top_p,omitempty"`
+	TopK              int      `json:"top_k,omitempty"`
+	MinLength         int      `json:"min_length,omitempty"`
+	MaxLength         int      `json:"max_length,omitempty"`
+	RepetitionPenalty float64  `json:"repetition_penalty,omitempty"`
+	Seed              int      `json:"seed,omitempty"`
+	StopWords         []string `json:"-"`
 }
 
 type (

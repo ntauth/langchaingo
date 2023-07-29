@@ -10,7 +10,9 @@ type CallOptions struct {
 	// Model is the model to use.
 	Model string `json:"model"`
 	// MaxTokens is the maximum number of tokens to generate.
-	MaxTokens int `json:"max_tokens"`
+	MaxTokens    int  `json:"max_tokens"`
+	MaxNewTokens int  `json:"max_new_tokens"`
+	DoSample     bool `json:"do_sample"`
 	// Temperature is the temperature for sampling, between 0 and 1.
 	Temperature float64 `json:"temperature"`
 	// StopWords is a list of words to stop on.
@@ -49,6 +51,18 @@ func WithModel(model string) CallOption {
 func WithMaxTokens(maxTokens int) CallOption {
 	return func(o *CallOptions) {
 		o.MaxTokens = maxTokens
+	}
+}
+
+func WithMaxNewTokens(maxNewTokens int) CallOption {
+	return func(o *CallOptions) {
+		o.MaxNewTokens = maxNewTokens
+	}
+}
+
+func WithDoSample() CallOption {
+	return func(o *CallOptions) {
+		o.DoSample = true
 	}
 }
 
