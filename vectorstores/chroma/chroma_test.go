@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
-	chromago "github.com/amikos-tech/chroma-go"
+	chromatypes "github.com/amikos-tech/chroma-go/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	tcchroma "github.com/testcontainers/testcontainers-go/modules/chroma"
 	"github.com/tmc/langchaingo/chains"
-	openaiEmbeddings "github.com/tmc/langchaingo/embeddings/openai"
+	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms/openai"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -32,13 +33,15 @@ func TestChromaGoStoreRest(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
-		chroma.WithDistanceFunction(chromago.COSINE),
+		chroma.WithDistanceFunction(chromatypes.COSINE),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
 	)
@@ -46,7 +49,7 @@ func TestChromaGoStoreRest(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(context.Background(), []schema.Document{
+	_, err = s.AddDocuments(context.Background(), []schema.Document{
 		{PageContent: "tokyo", Metadata: map[string]any{
 			"country": "japan",
 		}},
@@ -57,29 +60,25 @@ func TestChromaGoStoreRest(t *testing.T) {
 	docs, err := s.SimilaritySearch(context.Background(), "japan", 1)
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
-	require.Equal(t, docs[0].PageContent, "tokyo")
-
-	rawCountry := fmt.Sprintf("%s", docs[0].Metadata["country"])
-	// TODO (noodnik2): why is the metadata (apparently being) surrounded by quotes??
-	country, err := strconv.Unquote(rawCountry)
+	require.Equal(t, "tokyo", docs[0].PageContent)
+	country := docs[0].Metadata["country"]
 	require.NoError(t, err)
-	require.Equal(t, country, "japan")
-
-	// if the following fails, please revisit the stripping of the quotes (above)
-	require.NotEqual(t, rawCountry, country)
+	require.Equal(t, "japan", country)
 }
 
 func TestChromaStoreRestWithScoreThreshold(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
-		chroma.WithDistanceFunction(chromago.COSINE),
+		chroma.WithDistanceFunction(chromatypes.COSINE),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
 	)
@@ -87,7 +86,7 @@ func TestChromaStoreRestWithScoreThreshold(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(context.Background(), []schema.Document{
+	_, err = s.AddDocuments(context.Background(), []schema.Document{
 		{PageContent: "Tokyo"},
 		{PageContent: "Yokohama"},
 		{PageContent: "Osaka"},
@@ -120,11 +119,13 @@ func TestSimilaritySearchWithInvalidScoreThreshold(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
@@ -133,7 +134,7 @@ func TestSimilaritySearchWithInvalidScoreThreshold(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(context.Background(), []schema.Document{
+	_, err = s.AddDocuments(context.Background(), []schema.Document{
 		{PageContent: "Tokyo"},
 		{PageContent: "Yokohama"},
 		{PageContent: "Osaka"},
@@ -162,11 +163,14 @@ func TestChromaAsRetriever(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
@@ -175,7 +179,7 @@ func TestChromaAsRetriever(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(
+	_, err = s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{PageContent: "The color of the house is blue."},
@@ -183,9 +187,6 @@ func TestChromaAsRetriever(t *testing.T) {
 			{PageContent: "The color of the desk is orange."},
 		},
 	)
-	require.NoError(t, err)
-
-	llm, err := openai.New()
 	require.NoError(t, err)
 
 	result, err := chains.Run(
@@ -204,13 +205,16 @@ func TestChromaAsRetrieverWithScoreThreshold(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
-		chroma.WithDistanceFunction(chromago.COSINE),
+		chroma.WithDistanceFunction(chromatypes.COSINE),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
 	)
@@ -218,7 +222,7 @@ func TestChromaAsRetrieverWithScoreThreshold(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(
+	_, err = s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{PageContent: "The color of the house is blue."},
@@ -228,9 +232,6 @@ func TestChromaAsRetrieverWithScoreThreshold(t *testing.T) {
 			{PageContent: "The color of the chair beside the desk is beige."},
 		},
 	)
-	require.NoError(t, err)
-
-	llm, err := openai.New()
 	require.NoError(t, err)
 
 	result, err := chains.Run(
@@ -254,11 +255,14 @@ func TestChromaAsRetrieverWithMetadataFilterEqualsClause(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
@@ -267,7 +271,7 @@ func TestChromaAsRetrieverWithMetadataFilterEqualsClause(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(
+	_, err = s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{
@@ -304,9 +308,6 @@ func TestChromaAsRetrieverWithMetadataFilterEqualsClause(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	llm, err := openai.New()
-	require.NoError(t, err)
-
 	filter := make(map[string]any)
 	filterValue := make(map[string]any)
 	filterValue["$eq"] = "patio"
@@ -329,11 +330,14 @@ func TestChromaAsRetrieverWithMetadataFilterInClause(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, newChromaErr := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithEmbedder(e),
 	)
@@ -343,7 +347,7 @@ func TestChromaAsRetrieverWithMetadataFilterInClause(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	addDocumentsErr := s.AddDocuments(
+	_, addDocumentsErr := s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{
@@ -408,11 +412,14 @@ func TestChromaAsRetrieverWithMetadataFilterNotSelected(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
@@ -421,7 +428,7 @@ func TestChromaAsRetrieverWithMetadataFilterNotSelected(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(
+	_, err = s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{
@@ -458,17 +465,15 @@ func TestChromaAsRetrieverWithMetadataFilterNotSelected(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	llm, err := openai.New()
-	require.NoError(t, err)
-
 	result, err := chains.Run(
 		context.TODO(),
 		chains.NewRetrievalQAFromLLM(
 			llm,
 			vectorstores.ToRetriever(s, 5),
 		),
-		"What color(s) was/were the lamp(s) beside the desk described as?",
+		"What are all the colors of the lamps beside the desk?",
 	)
+	result = strings.ToLower(result)
 	require.NoError(t, err)
 
 	require.Contains(t, result, "black", "expected black in result")
@@ -482,11 +487,14 @@ func TestChromaAsRetrieverWithMetadataFilters(t *testing.T) {
 	t.Parallel()
 
 	testChromaURL, openaiAPIKey := getValues(t)
-	e, err := openaiEmbeddings.NewOpenAI()
+
+	llm, err := openai.New()
+	require.NoError(t, err)
+	e, err := embeddings.NewEmbedder(llm)
 	require.NoError(t, err)
 
 	s, err := chroma.New(
-		chroma.WithOpenAiAPIKey(openaiAPIKey),
+		chroma.WithOpenAIAPIKey(openaiAPIKey),
 		chroma.WithChromaURL(testChromaURL),
 		chroma.WithNameSpace(getTestNameSpace()),
 		chroma.WithEmbedder(e),
@@ -495,7 +503,7 @@ func TestChromaAsRetrieverWithMetadataFilters(t *testing.T) {
 
 	defer cleanupTestArtifacts(t, s)
 
-	err = s.AddDocuments(
+	_, err = s.AddDocuments(
 		context.Background(),
 		[]schema.Document{
 			{
@@ -521,9 +529,6 @@ func TestChromaAsRetrieverWithMetadataFilters(t *testing.T) {
 			},
 		},
 	)
-	require.NoError(t, err)
-
-	llm, err := openai.New()
 	require.NoError(t, err)
 
 	filter := map[string]interface{}{
@@ -557,14 +562,26 @@ func TestChromaAsRetrieverWithMetadataFilters(t *testing.T) {
 func getValues(t *testing.T) (string, string) {
 	t.Helper()
 
-	chromaURL := os.Getenv(chroma.ChromaURLKeyEnvVarName)
-	if chromaURL == "" {
-		t.Skipf("Must set %s to run test", chroma.ChromaURLKeyEnvVarName)
+	openaiAPIKey := os.Getenv(chroma.OpenAIAPIKeyEnvVarName)
+	if openaiAPIKey == "" {
+		t.Skipf("Must set %s to run test", chroma.OpenAIAPIKeyEnvVarName)
 	}
 
-	openaiAPIKey := os.Getenv(chroma.OpenAiAPIKeyEnvVarName)
-	if openaiAPIKey == "" {
-		t.Skipf("Must set %s to run test", chroma.OpenAiAPIKeyEnvVarName)
+	chromaURL := os.Getenv(chroma.ChromaURLKeyEnvVarName)
+	if chromaURL == "" {
+		chromaContainer, err := tcchroma.RunContainer(context.Background(), testcontainers.WithImage("chromadb/chroma:0.4.24"))
+		if err != nil && strings.Contains(err.Error(), "Cannot connect to the Docker daemon") {
+			t.Skip("Docker not available")
+		}
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, chromaContainer.Terminate(context.Background()))
+		})
+
+		chromaURL, err = chromaContainer.RESTEndpoint(context.Background())
+		if err != nil {
+			t.Skipf("Failed to get chroma container REST endpoint: %s", err)
+		}
 	}
 
 	return chromaURL, openaiAPIKey

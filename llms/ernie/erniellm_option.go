@@ -1,5 +1,7 @@
 package ernie
 
+import "github.com/tmc/langchaingo/callbacks"
+
 const (
 	ernieAPIKey    = "ERNIE_API_KEY"    //nolint:gosec
 	ernieSecretKey = "ERNIE_SECRET_KEY" //nolint:gosec
@@ -9,7 +11,9 @@ type ModelName string
 
 const (
 	ModelNameERNIEBot       = "ERNIE-Bot"
+	ModelNameERNIEBot8K     = "ERNIE-Bot-8K"
 	ModelNameERNIEBotTurbo  = "ERNIE-Bot-turbo"
+	ModelNameERNIEBotPro    = "ERNIE-Bot-pro"
 	ModelNameBloomz7B       = "BLOOMZ-7B"
 	ModelNameLlama2_7BChat  = "Llama-2-7b-chat"
 	ModelNameLlama2_13BChat = "Llama-2-13b-chat"
@@ -17,10 +21,11 @@ const (
 )
 
 type options struct {
-	apiKey      string
-	secretKey   string
-	accessToken string
-	modelName   ModelName
+	apiKey           string
+	secretKey        string
+	accessToken      string
+	modelName        ModelName
+	callbacksHandler callbacks.Handler
 }
 
 type Option func(*options)
@@ -52,5 +57,12 @@ func WithAccessToken(accessToken string) Option {
 func WithModelName(modelName ModelName) Option {
 	return func(opts *options) {
 		opts.modelName = modelName
+	}
+}
+
+// WithCallbackHandler passes the callback Handler to the client.
+func WithCallbackHandler(callbacksHandler callbacks.Handler) Option {
+	return func(opts *options) {
+		opts.callbacksHandler = callbacksHandler
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/cohere"
 )
 
@@ -15,15 +16,15 @@ func main() {
 	}
 	ctx := context.Background()
 	input := "The first man to walk on the moon"
-	completion, err := llm.Call(ctx, input)
+	completion, err := llms.GenerateFromSinglePrompt(ctx, llm, input)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println(completion)
 
-	inputToken := llm.GetNumTokens(input)
-	outputToken := llm.GetNumTokens(completion)
+	inputToken := llms.CountTokens("", input)
+	outputToken := llms.CountTokens("", completion)
 
 	fmt.Printf("%v/%v\n", inputToken, outputToken)
 }

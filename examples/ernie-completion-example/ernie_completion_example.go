@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	ernieembedding "github.com/tmc/langchaingo/embeddings/ernie"
+	"github.com/tmc/langchaingo/embeddings"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ernie"
 )
@@ -19,14 +19,13 @@ func main() {
 		log.Fatal(err)
 	}
 	ctx := context.Background()
-	completion, err := llm.Call(ctx, "介绍一下你自己",
+	completion, err := llms.GenerateFromSinglePrompt(ctx, llm, "介绍一下你自己",
 		llms.WithTemperature(0.8),
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
 			log.Println(string(chunk))
 			return nil
 		}),
 	)
-
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -34,10 +33,9 @@ func main() {
 	_ = completion
 
 	// embedding
-	embedding, _ := ernieembedding.NewErnie()
+	embedding, _ := embeddings.NewEmbedder(llm)
 
 	emb, err := embedding.EmbedDocuments(ctx, []string{"你好"})
-
 	if err != nil {
 		log.Fatal(err)
 	}

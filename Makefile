@@ -7,7 +7,7 @@ test:
 	go test ./...
 
 .PHONY: lint
-lint:
+lint: lint-deps
 	golangci-lint run --color=always --sort-results ./...
 
 .PHONY: lint-exp
@@ -21,6 +21,18 @@ lint-fix:
 .PHONY: lint-all
 lint-all:
 	golangci-lint run --color=always --sort-results ./...
+
+.PHONY: lint-deps
+lint-deps:
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+		echo >&2 "golangci-lint not found. Installing..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.1; \
+	}
+
+.PHONY: docs
+docs:
+	@echo "Generating documentation..."
+	$(MAKE) -C docs build
 
 .PHONY: test-race
 test-race:
@@ -45,3 +57,8 @@ clean-lint-cache:
 build-examples:
 	for example in $(shell find ./examples -mindepth 1 -maxdepth 1 -type d); do \
 		(cd $$example; echo Build $$example; go mod tidy; go build -o /dev/null) || exit 1; done
+
+.PHONY: add-go-work
+add-go-work:
+	go work init .
+	go work use -r .
