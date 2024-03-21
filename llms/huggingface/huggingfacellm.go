@@ -8,7 +8,6 @@ import (
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/huggingface/internal/huggingfaceclient"
-	"github.com/tmc/langchaingo/schema"
 )
 
 var (
@@ -22,34 +21,31 @@ type LLM struct {
 	client           *huggingfaceclient.Client
 }
 
-var (
-	_ llms.LLM           = (*LLM)(nil)
-	_ llms.LanguageModel = (*LLM)(nil)
-)
+var _ llms.Model = (*LLM)(nil)
 
+// Call implements the LLM interface.
 func (o *LLM) Call(ctx context.Context, prompt string, options ...llms.CallOption) (string, error) {
-	r, err := o.Generate(ctx, []string{prompt}, options...)
-	if err != nil {
-		return "", err
-	}
-	if len(r) == 0 {
-		return "", ErrEmptyResponse
-	}
-	return r[0].Text, nil
+	return llms.GenerateFromSinglePrompt(ctx, o, prompt, options...)
 }
 
-func (o *LLM) Generate(ctx context.Context, prompts []string, options ...llms.CallOption) ([]*llms.Generation, error) {
+// GenerateContent implements the Model interface.
+func (o *LLM) GenerateContent(ctx context.Context, messages []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) { //nolint: lll, cyclop, whitespace
+
 	if o.CallbacksHandler != nil {
-		o.CallbacksHandler.HandleLLMStart(ctx, prompts)
+		o.CallbacksHandler.HandleLLMGenerateContentStart(ctx, messages)
 	}
 
 	opts := &llms.CallOptions{Model: defaultModel}
 	for _, opt := range options {
 		opt(opts)
 	}
+
+	// Assume we get a single text message
+	msg0 := messages[0]
+	part := msg0.Parts[0]
 	result, err := o.client.RunInference(ctx, &huggingfaceclient.InferenceRequest{
 		Model:             o.client.Model,
-		Prompt:            prompts[0],
+		Prompt:            part.(llms.TextContent).Text,
 		Task:              huggingfaceclient.InferenceTaskTextGeneration,
 		Temperature:       opts.Temperature,
 		TopP:              opts.TopP,
@@ -60,31 +56,27 @@ func (o *LLM) Generate(ctx context.Context, prompts []string, options ...llms.Ca
 		Seed:              opts.Seed,
 	})
 	if err != nil {
+		if o.CallbacksHandler != nil {
+			o.CallbacksHandler.HandleLLMError(ctx, err)
+		}
 		return nil, err
 	}
 
-	generations := []*llms.Generation{
-		{Text: result.Text},
+	resp := &llms.ContentResponse{
+		Choices: []*llms.ContentChoice{
+			{
+				Content: result.Text,
+			},
+		},
 	}
-
-	if o.CallbacksHandler != nil {
-		o.CallbacksHandler.HandleLLMEnd(ctx, llms.LLMResult{Generations: [][]*llms.Generation{generations}})
-	}
-	return generations, nil
-}
-
-func (o *LLM) GeneratePrompt(ctx context.Context, prompts []schema.PromptValue, options ...llms.CallOption) (llms.LLMResult, error) { //nolint:lll
-	return llms.GeneratePrompt(ctx, o, prompts, options...)
-}
-
-func (o *LLM) GetNumTokens(text string) int {
-	return llms.CountTokens("gpt2", text)
+	return resp, nil
 }
 
 func New(opts ...Option) (*LLM, error) {
 	options := &options{
 		token: os.Getenv(tokenEnvVarName),
 		model: defaultModel,
+		url:   defaultURL,
 	}
 
 	for _, opt := range opts {
@@ -95,7 +87,7 @@ func New(opts ...Option) (*LLM, error) {
 		return nil, ErrMissingToken
 	}
 
-	c, err := huggingfaceclient.New(options.token, options.model)
+	c, err := huggingfaceclient.New(options.token, options.model, options.url)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,34 +20,36 @@ type Executor struct {
 	Tools            []tools.Tool
 	Memory           schema.Memory
 	CallbacksHandler callbacks.Handler
+	ErrorHandler     *ParserErrorHandler
 
 	MaxIterations           int
 	ReturnIntermediateSteps bool
 }
 
 var (
-	_ chains.Chain           = Executor{}
-	_ callbacks.HandlerHaver = Executor{}
+	_ chains.Chain           = &Executor{}
+	_ callbacks.HandlerHaver = &Executor{}
 )
 
-// NewExecutor creates a new agent executor with a agent and the tools the agent can use.
-func NewExecutor(agent Agent, tools []tools.Tool, opts ...CreationOption) Executor {
+// NewExecutor creates a new agent executor with an agent and the tools the agent can use.
+func NewExecutor(agent Agent, tools []tools.Tool, opts ...Option) *Executor {
 	options := executorDefaultOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	return Executor{
+	return &Executor{
 		Agent:                   agent,
 		Tools:                   tools,
 		Memory:                  options.memory,
 		MaxIterations:           options.maxIterations,
 		ReturnIntermediateSteps: options.returnIntermediateSteps,
 		CallbacksHandler:        options.callbacksHandler,
+		ErrorHandler:            options.errorHandler,
 	}
 }
 
-func (e Executor) Call(ctx context.Context, inputValues map[string]any, _ ...chains.ChainCallOption) (map[string]any, error) { //nolint:lll
+func (e *Executor) Call(ctx context.Context, inputValues map[string]any, _ ...chains.ChainCallOption) (map[string]any, error) { //nolint:lll
 	inputs, err := inputsToString(inputValues)
 	if err != nil {
 		return nil, err
@@ -55,31 +58,67 @@ func (e Executor) Call(ctx context.Context, inputValues map[string]any, _ ...cha
 
 	steps := make([]schema.AgentStep, 0)
 	for i := 0; i < e.MaxIterations; i++ {
-		actions, finish, err := e.Agent.Plan(ctx, steps, inputs)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(actions) == 0 && finish == nil {
-			return nil, ErrAgentNoReturn
-		}
-
-		if finish != nil {
-			return e.getReturn(finish, steps), nil
-		}
-
-		for _, action := range actions {
-			steps, err = e.doAction(ctx, steps, nameToTool, action)
-			if err != nil {
-				return nil, err
-			}
+		var finish map[string]any
+		steps, finish, err = e.doIteration(ctx, steps, nameToTool, inputs)
+		if finish != nil || err != nil {
+			return finish, err
 		}
 	}
 
-	return nil, ErrNotFinished
+	if e.CallbacksHandler != nil {
+		e.CallbacksHandler.HandleAgentFinish(ctx, schema.AgentFinish{
+			ReturnValues: map[string]any{"output": ErrNotFinished.Error()},
+		})
+	}
+	return e.getReturn(
+		&schema.AgentFinish{ReturnValues: make(map[string]any)},
+		steps,
+	), ErrNotFinished
 }
 
-func (e Executor) doAction(
+func (e *Executor) doIteration( // nolint
+	ctx context.Context,
+	steps []schema.AgentStep,
+	nameToTool map[string]tools.Tool,
+	inputs map[string]string,
+) ([]schema.AgentStep, map[string]any, error) {
+	actions, finish, err := e.Agent.Plan(ctx, steps, inputs)
+	if errors.Is(err, ErrUnableToParseOutput) && e.ErrorHandler != nil {
+		formattedObservation := err.Error()
+		if e.ErrorHandler.Formatter != nil {
+			formattedObservation = e.ErrorHandler.Formatter(formattedObservation)
+		}
+		steps = append(steps, schema.AgentStep{
+			Observation: formattedObservation,
+		})
+		return steps, nil, nil
+	}
+	if err != nil {
+		return steps, nil, err
+	}
+
+	if len(actions) == 0 && finish == nil {
+		return steps, nil, ErrAgentNoReturn
+	}
+
+	if finish != nil {
+		if e.CallbacksHandler != nil {
+			e.CallbacksHandler.HandleAgentFinish(ctx, *finish)
+		}
+		return steps, e.getReturn(finish, steps), nil
+	}
+
+	for _, action := range actions {
+		steps, err = e.doAction(ctx, steps, nameToTool, action)
+		if err != nil {
+			return steps, nil, err
+		}
+	}
+
+	return steps, nil, nil
+}
+
+func (e *Executor) doAction(
 	ctx context.Context,
 	steps []schema.AgentStep,
 	nameToTool map[string]tools.Tool,
@@ -108,7 +147,7 @@ func (e Executor) doAction(
 	}), nil
 }
 
-func (e Executor) getReturn(finish *schema.AgentFinish, steps []schema.AgentStep) map[string]any {
+func (e *Executor) getReturn(finish *schema.AgentFinish, steps []schema.AgentStep) map[string]any {
 	if e.ReturnIntermediateSteps {
 		finish.ReturnValues[_intermediateStepsOutputKey] = steps
 	}
@@ -118,20 +157,20 @@ func (e Executor) getReturn(finish *schema.AgentFinish, steps []schema.AgentStep
 
 // GetInputKeys gets the input keys the agent of the executor expects.
 // Often "input".
-func (e Executor) GetInputKeys() []string {
+func (e *Executor) GetInputKeys() []string {
 	return e.Agent.GetInputKeys()
 }
 
 // GetOutputKeys gets the output keys the agent of the executor returns.
-func (e Executor) GetOutputKeys() []string {
+func (e *Executor) GetOutputKeys() []string {
 	return e.Agent.GetOutputKeys()
 }
 
-func (e Executor) GetMemory() schema.Memory { //nolint:ireturn
+func (e *Executor) GetMemory() schema.Memory { //nolint:ireturn
 	return e.Memory
 }
 
-func (e Executor) GetCallbackHandler() callbacks.Handler { //nolint:ireturn
+func (e *Executor) GetCallbackHandler() callbacks.Handler { //nolint:ireturn
 	return e.CallbacksHandler
 }
 

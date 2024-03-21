@@ -33,7 +33,7 @@ func New() (*Tool, error) {
 }
 
 func (t Tool) Name() string {
-	return "Google Search"
+	return "GoogleSearch"
 }
 
 func (t Tool) Description() string {
@@ -53,6 +53,10 @@ func (t Tool) Call(ctx context.Context, input string) (string, error) {
 	if err != nil {
 		if errors.Is(err, internal.ErrNoGoodResult) {
 			return "No good Google Search Results was found", nil
+		}
+
+		if t.CallbacksHandler != nil {
+			t.CallbacksHandler.HandleToolError(ctx, err)
 		}
 
 		return "", err

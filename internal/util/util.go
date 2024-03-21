@@ -1,4 +1,4 @@
-// Package util contins general helper functions.
+// Package util contains general helper functions.
 package util
 
 // ToSet converts a list to a set.
@@ -38,4 +38,21 @@ func ListKeys[T any](m map[string]T) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// MinInt returns the minimum value in nums.
+// If nums is empty, it returns 0.
+func MinInt(nums []int) int {
+	var min int
+	for idx := 0; idx < len(nums); idx++ {
+		item := nums[idx]
+		if idx == 0 {
+			min = item
+			continue
+		}
+		if item < min {
+			min = item
+		}
+	}
+	return min
 }

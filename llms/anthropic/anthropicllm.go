@@ -3,12 +3,13 @@ package anthropic
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic/internal/anthropicclient"
-	"github.com/tmc/langchaingo/schema"
 )
 
 var (
@@ -23,10 +24,7 @@ type LLM struct {
 	client           *anthropicclient.Client
 }
 
-var (
-	_ llms.LLM           = (*LLM)(nil)
-	_ llms.LanguageModel = (*LLM)(nil)
-)
+var _ llms.Model = (*LLM)(nil)
 
 // New returns a new Anthropic LLM.
 func New(opts ...Option) (*LLM, error) {
@@ -38,7 +36,9 @@ func New(opts ...Option) (*LLM, error) {
 
 func newClient(opts ...Option) (*anthropicclient.Client, error) {
 	options := &options{
-		token: os.Getenv(tokenEnvVarName),
+		token:      os.Getenv(tokenEnvVarName),
+		baseURL:    anthropicclient.DefaultBaseURL,
+		httpClient: http.DefaultClient,
 	}
 
 	for _, opt := range opts {
@@ -49,60 +49,56 @@ func newClient(opts ...Option) (*anthropicclient.Client, error) {
 		return nil, ErrMissingToken
 	}
 
-	return anthropicclient.New(options.token, options.model)
+	return anthropicclient.New(options.token, options.model, options.baseURL, options.httpClient)
 }
 
 // Call requests a completion for the given prompt.
 func (o *LLM) Call(ctx context.Context, prompt string, options ...llms.CallOption) (string, error) {
-	r, err := o.Generate(ctx, []string{prompt}, options...)
-	if err != nil {
-		return "", err
-	}
-	if len(r) == 0 {
-		return "", ErrEmptyResponse
-	}
-	return r[0].Text, nil
+	return llms.GenerateFromSinglePrompt(ctx, o, prompt, options...)
 }
 
-func (o *LLM) Generate(ctx context.Context, prompts []string, options ...llms.CallOption) ([]*llms.Generation, error) {
+// GenerateContent implements the Model interface.
+func (o *LLM) GenerateContent(ctx context.Context, messages []llms.MessageContent, options ...llms.CallOption) (*llms.ContentResponse, error) { //nolint: lll, cyclop, whitespace
+
 	if o.CallbacksHandler != nil {
-		o.CallbacksHandler.HandleLLMStart(ctx, prompts)
+		o.CallbacksHandler.HandleLLMGenerateContentStart(ctx, messages)
 	}
 
-	opts := llms.CallOptions{}
+	opts := &llms.CallOptions{}
 	for _, opt := range options {
-		opt(&opts)
+		opt(opts)
 	}
 
-	generations := make([]*llms.Generation, 0, len(prompts))
-	for _, prompt := range prompts {
-		result, err := o.client.CreateCompletion(ctx, &anthropicclient.CompletionRequest{
-			Model:         opts.Model,
-			Prompt:        prompt,
-			MaxTokens:     opts.MaxTokens,
-			StopWords:     opts.StopWords,
-			Temperature:   opts.Temperature,
-			TopP:          opts.TopP,
-			StreamingFunc: opts.StreamingFunc,
-		})
-		if err != nil {
-			return nil, err
+	// Assume we get a single text message
+	msg0 := messages[0]
+	part := msg0.Parts[0]
+	partText, ok := part.(llms.TextContent)
+	if !ok {
+		return nil, fmt.Errorf("unexpected message type: %T", part)
+	}
+	prompt := fmt.Sprintf("\n\nHuman: %s\n\nAssistant:", partText.Text)
+	result, err := o.client.CreateCompletion(ctx, &anthropicclient.CompletionRequest{
+		Model:         opts.Model,
+		Prompt:        prompt,
+		MaxTokens:     opts.MaxTokens,
+		StopWords:     opts.StopWords,
+		Temperature:   opts.Temperature,
+		TopP:          opts.TopP,
+		StreamingFunc: opts.StreamingFunc,
+	})
+	if err != nil {
+		if o.CallbacksHandler != nil {
+			o.CallbacksHandler.HandleLLMError(ctx, err)
 		}
-		generations = append(generations, &llms.Generation{
-			Text: result.Text,
-		})
+		return nil, err
 	}
 
-	if o.CallbacksHandler != nil {
-		o.CallbacksHandler.HandleLLMEnd(ctx, llms.LLMResult{Generations: [][]*llms.Generation{generations}})
+	resp := &llms.ContentResponse{
+		Choices: []*llms.ContentChoice{
+			{
+				Content: result.Text,
+			},
+		},
 	}
-	return generations, nil
-}
-
-func (o *LLM) GeneratePrompt(ctx context.Context, promptValues []schema.PromptValue, options ...llms.CallOption) (llms.LLMResult, error) { //nolint:lll
-	return llms.GeneratePrompt(ctx, o, promptValues, options...)
-}
-
-func (o *LLM) GetNumTokens(text string) int {
-	return llms.CountTokens(o.client.Model, text)
+	return resp, nil
 }
