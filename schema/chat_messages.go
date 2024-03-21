@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// ChatMessageType is the type of a chat message.
+// ChatMessageType is the type of chat message.
 type ChatMessageType string
 
 // ErrUnexpectedChatMessageType is returned when a chat message is of an unexpected type.
@@ -57,8 +57,9 @@ type AIChatMessage struct {
 	FunctionCall *FunctionCall `json:"function_call,omitempty"`
 }
 
-func (m AIChatMessage) GetType() ChatMessageType { return ChatMessageTypeAI }
-func (m AIChatMessage) GetContent() string       { return m.Content }
+func (m AIChatMessage) GetType() ChatMessageType       { return ChatMessageTypeAI }
+func (m AIChatMessage) GetContent() string             { return m.Content }
+func (m AIChatMessage) GetFunctionCall() *FunctionCall { return m.FunctionCall }
 
 // HumanChatMessage is a message sent by a human.
 type HumanChatMessage struct {
@@ -102,18 +103,6 @@ type FunctionCall struct {
 func (m FunctionChatMessage) GetType() ChatMessageType { return ChatMessageTypeFunction }
 func (m FunctionChatMessage) GetContent() string       { return m.Content }
 func (m FunctionChatMessage) GetName() string          { return m.Name }
-
-// ChatGeneration is the output of a single chat generation.
-type ChatGeneration struct {
-	Generation
-	Message ChatMessage
-}
-
-// ChatResult is the class that contains all relevant information for a Chat Result.
-type ChatResult struct {
-	Generations []ChatGeneration
-	LLMOutput   map[string]any
-}
 
 // GetBufferString gets the buffer string of messages.
 func GetBufferString(messages []ChatMessage, humanPrefix string, aiPrefix string) (string, error) {

@@ -137,7 +137,11 @@ func (p *FewShotPrompt) Format(values map[string]interface{}) (string, error) {
 	}
 
 	template := p.AssemblePieces(exampleStrings)
+<<<<<<< HEAD
 	return defaultformatterMapping[p.TemplateFormat](template, resolvedValues)
+=======
+	return defaultFormatterMapping[p.TemplateFormat](template, resolvedValues)
+>>>>>>> upstream/main
 }
 
 // AssemblePieces assembles the pieces of the few-shot prompt.

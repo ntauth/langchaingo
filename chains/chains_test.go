@@ -3,6 +3,7 @@ package chains
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -22,30 +23,54 @@ type testLanguageModel struct {
 	recordedPrompt []schema.PromptValue
 }
 
-func (l *testLanguageModel) GeneratePrompt(_ context.Context, promptValue []schema.PromptValue, _ ...llms.CallOption) (llms.LLMResult, error) { //nolint:lll
-	l.recordedPrompt = promptValue
+type stringPromptValue struct {
+	s string
+}
+
+func (spv stringPromptValue) String() string {
+	return spv.s
+}
+
+func (spv stringPromptValue) Messages() []schema.ChatMessage {
+	return nil
+}
+
+func (l *testLanguageModel) Call(ctx context.Context, prompt string, options ...llms.CallOption) (string, error) {
+	return llms.GenerateFromSinglePrompt(ctx, l, prompt, options...)
+}
+
+func (l *testLanguageModel) GenerateContent(_ context.Context, mc []llms.MessageContent, _ ...llms.CallOption) (*llms.ContentResponse, error) { //nolint: lll, cyclop, whitespace
+	part0 := mc[0].Parts[0]
+	var prompt string
+	if tc, ok := part0.(llms.TextContent); ok {
+		prompt = tc.Text
+	} else {
+		return nil, fmt.Errorf("passed non-text part")
+	}
+	l.recordedPrompt = []schema.PromptValue{
+		stringPromptValue{s: prompt},
+	}
+
 	if l.simulateWork > 0 {
 		time.Sleep(l.simulateWork)
 	}
 
 	var llmResult string
+
 	if l.expResult != "" {
 		llmResult = l.expResult
 	} else {
-		llmResult = promptValue[0].String()
+		llmResult = prompt
 	}
-	return llms.LLMResult{
-		Generations: [][]*llms.Generation{{&llms.Generation{
-			Text: llmResult,
-		}}},
+
+	return &llms.ContentResponse{
+		Choices: []*llms.ContentChoice{
+			{Content: llmResult},
+		},
 	}, nil
 }
 
-func (l *testLanguageModel) GetNumTokens(text string) int {
-	return len(text)
-}
-
-var _ llms.LanguageModel = &testLanguageModel{}
+var _ llms.Model = &testLanguageModel{}
 
 func TestApply(t *testing.T) {
 	t.Parallel()
@@ -55,7 +80,7 @@ func TestApply(t *testing.T) {
 	inputs := make([]map[string]any, numInputs)
 	for i := 0; i < len(inputs); i++ {
 		inputs[i] = map[string]any{
-			"text": fmt.Sprint(i),
+			"text": strconv.Itoa(i),
 		}
 	}
 
