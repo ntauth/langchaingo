@@ -7,7 +7,11 @@ import (
 	"os"
 	"strings"
 
+<<<<<<< HEAD
+	chroma_go "github.com/amikos-tech/chroma-go"
+=======
 	chroma_go "github.com/amikos-tech/chroma-go/types"
+>>>>>>> upstream/main
 	"github.com/google/uuid"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/vectorstores"
@@ -15,10 +19,18 @@ import (
 )
 
 func main() {
+<<<<<<< HEAD
+
+	// Create a new Chroma vector store.
+	store, errNs := chroma.New(
+		chroma.WithChromaURL(os.Getenv("CHROMA_URL")),
+		chroma.WithOpenAiAPIKey(os.Getenv("OPENAI_API_KEY")),
+=======
 	// Create a new Chroma vector store.
 	store, errNs := chroma.New(
 		chroma.WithChromaURL(os.Getenv("CHROMA_URL")),
 		chroma.WithOpenAIAPIKey(os.Getenv("OPENAI_API_KEY")),
+>>>>>>> upstream/main
 		chroma.WithDistanceFunction(chroma_go.COSINE),
 		chroma.WithNameSpace(uuid.New().String()),
 	)
@@ -29,7 +41,11 @@ func main() {
 	type meta = map[string]any
 
 	// Add documents to the vector store.
+<<<<<<< HEAD
+	errAd := store.AddDocuments(context.Background(), []schema.Document{
+=======
 	_, errAd := store.AddDocuments(context.Background(), []schema.Document{
+>>>>>>> upstream/main
 		{PageContent: "Tokyo", Metadata: meta{"population": 9.7, "area": 622}},
 		{PageContent: "Kyoto", Metadata: meta{"population": 1.46, "area": 828}},
 		{PageContent: "Hiroshima", Metadata: meta{"population": 1.2, "area": 905}},
@@ -111,4 +127,8 @@ func main() {
 		fmt.Printf("%d. case: %s\n", ecI+1, ec.name)
 		fmt.Printf("    result: %s\n", strings.Join(texts, ", "))
 	}
+<<<<<<< HEAD
+
+=======
+>>>>>>> upstream/main
 }

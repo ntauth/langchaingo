@@ -31,7 +31,11 @@ func TestConstitutionCritiqueParsing(t *testing.T) {
 
 	for _, rawCritique := range []string{textOne, textTwo, textThree} {
 		critique := parseCritique(rawCritique)
+<<<<<<< HEAD
+		require.Equal(t, strings.TrimSpace(critique), "This text is bad.",
+=======
 		require.Equal(t, "This text is bad.", strings.TrimSpace(critique),
+>>>>>>> upstream/main
 			fmt.Sprintf("Failed on %s with %s", rawCritique, critique))
 	}
 }

@@ -37,7 +37,11 @@ type Constitutional struct {
 	critiqueChain            chains.LLMChain
 	revisionChain            chains.LLMChain
 	constitutionalPrinciples []ConstitutionalPrinciple
+<<<<<<< HEAD
+	llm                      llms.LanguageModel
+=======
 	llm                      llms.Model
+>>>>>>> upstream/main
 	returnIntermediateSteps  bool
 	memory                   schema.Memory
 }
@@ -58,7 +62,11 @@ func NewConstitutionalPrinciple(critique, revision string, names ...string) Cons
 }
 
 // NewConstitutional creates a new Constitutional chain.
+<<<<<<< HEAD
+func NewConstitutional(llm llms.LanguageModel, chain chains.LLMChain,
+=======
 func NewConstitutional(llm llms.Model, chain chains.LLMChain,
+>>>>>>> upstream/main
 	constitutionalPrinciples []ConstitutionalPrinciple, options map[string]*prompts.FewShotPrompt,
 ) *Constitutional {
 	CritiquePrompt, RevisionPrompt := initCritiqueRevision()
