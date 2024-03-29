@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	_finalAnswerAction = "Final Answer:"
-	_defaultOutputKey  = "output"
+	_finalAnswerActionRegex = "(?i)Final Answer:"
+	_defaultOutputKey       = "output"
 )
 
 // OneShotZeroAgent is a struct that represents an agent responsible for deciding
@@ -116,8 +116,10 @@ func (a *OneShotZeroAgent) GetOutputKeys() []string {
 }
 
 func (a *OneShotZeroAgent) parseOutput(output string) ([]schema.AgentAction, *schema.AgentFinish, error) {
-	if strings.Contains(output, _finalAnswerAction) {
-		splits := strings.Split(output, _finalAnswerAction)
+	finalAnswerRegex := regexp.MustCompile(_finalAnswerActionRegex)
+	finalAnswerPrefixMatches := finalAnswerRegex.FindStringSubmatch(output)
+	if len(finalAnswerPrefixMatches) != 0 {
+		splits := strings.Split(output, finalAnswerPrefixMatches[0])
 
 		return nil, &schema.AgentFinish{
 			ReturnValues: map[string]any{
