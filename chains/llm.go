@@ -56,12 +56,28 @@ func (c LLMChain) Call(ctx context.Context, values map[string]any, options ...Ch
 		return nil, err
 	}
 
-	result, err := llms.GenerateFromSinglePrompt(ctx, c.LLM, promptValue.String(), getLLMCallOptions(options...)...)
+	var messages []llms.MessageContent
+	messages = append(messages, llms.MessageContent{
+		Role: schema.ChatMessageTypeHuman,
+		Parts: []llms.ContentPart{llms.TextContent{
+			Text: promptValue.String(),
+		}},
+	})
+	if imageURL, hasImage := values["image_url"]; hasImage {
+		messages = append(messages, llms.MessageContent{
+			Role: schema.ChatMessageTypeHuman,
+			Parts: []llms.ContentPart{
+				llms.ImageURLPart(imageURL.(string)),
+			},
+		})
+	}
+
+	result, err := c.LLM.GenerateContent(ctx, messages, getLLMCallOptions(options...)...)
 	if err != nil {
 		return nil, err
 	}
 
-	finalOutput, err := c.OutputParser.ParseWithPrompt(result, promptValue)
+	finalOutput, err := c.OutputParser.ParseWithPrompt(result.Choices[0].Content, promptValue)
 	if err != nil {
 		return nil, err
 	}
