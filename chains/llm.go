@@ -2,6 +2,7 @@ package chains
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/llms"
@@ -63,12 +64,20 @@ func (c LLMChain) Call(ctx context.Context, values map[string]any, options ...Ch
 			Text: promptValue.String(),
 		}},
 	})
-	if imageURL, hasImage := values["image_url"]; hasImage {
+	if binaryContents_, hasBinaryContents := values[llms.BinaryContentsDummyKey]; hasBinaryContents {
+		binaryContents, ok := binaryContents_.([]llms.BinaryContent)
+		if !ok {
+			return nil, fmt.Errorf("invalid binary contents, expected %T, got %T", []llms.BinaryContent{}, binaryContents_)
+		}
+
+		var contentParts []llms.ContentPart
+		for _, content := range binaryContents {
+			contentParts = append(contentParts, content)
+		}
+
 		messages = append(messages, llms.MessageContent{
-			Role: schema.ChatMessageTypeHuman,
-			Parts: []llms.ContentPart{
-				llms.ImageURLPart(imageURL.(string)),
-			},
+			Role:  schema.ChatMessageTypeHuman,
+			Parts: contentParts,
 		})
 	}
 

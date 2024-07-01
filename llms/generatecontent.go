@@ -6,6 +6,8 @@ import (
 	"github.com/tmc/langchaingo/schema"
 )
 
+const BinaryContentsDummyKey = "__binary_contents"
+
 // MessageContent is the content of a message sent to a LLM. It has a role and a
 // sequence of parts. For example, it can represent one message in a chat
 // session sent by the user, in which case Role will be
