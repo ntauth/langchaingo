@@ -2,6 +2,7 @@ package chains
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/tmc/langchaingo/callbacks"
@@ -64,10 +65,15 @@ func (c LLMChain) Call(ctx context.Context, values map[string]any, options ...Ch
 			Text: promptValue.String(),
 		}},
 	})
-	if binaryContents_, hasBinaryContents := values[llms.BinaryContentsDummyKey]; hasBinaryContents {
-		binaryContents, ok := binaryContents_.([]llms.BinaryContent)
+	if binaryContentsStr_, hasBinaryContents := values[llms.BinaryContentsDummyKey]; hasBinaryContents {
+		binaryContentsStr, ok := binaryContentsStr_.(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid binary contents, expected %T, got %T", []llms.BinaryContent{}, binaryContents_)
+			return nil, fmt.Errorf("invalid binary contents, expected %T, got %T", "", binaryContentsStr_)
+		}
+
+		var binaryContents []llms.BinaryContent
+		if err := json.Unmarshal([]byte(binaryContentsStr), &binaryContents); err != nil {
+			return nil, err
 		}
 
 		var contentParts []llms.ContentPart
