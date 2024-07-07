@@ -2,6 +2,7 @@ package chains
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/llms"
@@ -70,6 +71,22 @@ func (c LLMChain) Call(ctx context.Context, values map[string]any, options ...Ch
 				llms.ImageURLPart(imageURL.(string)),
 			},
 		})
+	}
+
+	if imageURLs_, hasImages := values["image_urls"]; hasImages {
+		var imageURLs []string
+		if err := json.Unmarshal([]byte(imageURLs_.(string)), &imageURLs); err != nil {
+			return nil, err
+		}
+
+		for _, imageURL := range imageURLs {
+			messages = append(messages, llms.MessageContent{
+				Role: schema.ChatMessageTypeHuman,
+				Parts: []llms.ContentPart{
+					llms.ImageURLPart(imageURL),
+				},
+			})
+		}
 	}
 
 	result, err := c.LLM.GenerateContent(ctx, messages, getLLMCallOptions(options...)...)
