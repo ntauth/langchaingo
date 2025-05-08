@@ -2,9 +2,13 @@ module github.com/tmc/langchaingo/examples/prompts-with-partial-example
 
 go 1.21
 
+<<<<<<< HEAD
+require github.com/tmc/langchaingo v0.0.0-20231016073449-5620c5b08983
+=======
 toolchain go1.21.4
 
 require github.com/tmc/langchaingo v0.1.7
+>>>>>>> upstream/main
 
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect
@@ -26,9 +30,14 @@ require (
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
+<<<<<<< HEAD
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea // indirect
+=======
 	github.com/yargevad/filepathx v1.0.0 // indirect
 	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/sys v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+>>>>>>> upstream/main
 )

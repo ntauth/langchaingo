@@ -3,17 +3,35 @@ package chroma
 import (
 	"context"
 
+<<<<<<< HEAD
+	chroma_go "github.com/amikos-tech/chroma-go"
+	"github.com/tmc/langchaingo/embeddings"
+)
+
+var _ chroma_go.EmbeddingFunction = chromaGoEmbedder{} // compile-time check
+=======
 	chromatypes "github.com/amikos-tech/chroma-go/types"
 	"github.com/tmc/langchaingo/embeddings"
 )
 
 var _ chromatypes.EmbeddingFunction = chromaGoEmbedder{} // compile-time check
+>>>>>>> upstream/main
 
 // chromaGoEmbedder adapts an 'embeddings.Embedder' to a 'chroma_go.EmbeddingFunction'.
 type chromaGoEmbedder struct {
 	embeddings.Embedder
 }
 
+<<<<<<< HEAD
+// CreateEmbeddingWithModel passes through to `CreateEmbedding`; i.e., ignores 'model' (second) parameter.
+func (e chromaGoEmbedder) CreateEmbeddingWithModel(texts []string, _ string) ([][]float32, error) {
+	return e.CreateEmbedding(texts)
+}
+
+// CreateEmbedding creates the embedding using the current model.
+func (e chromaGoEmbedder) CreateEmbedding(texts []string) ([][]float32, error) {
+	return e.EmbedDocuments(context.TODO(), texts)
+=======
 func (e chromaGoEmbedder) EmbedDocuments(ctx context.Context, texts []string) ([]*chromatypes.Embedding, error) {
 	_embeddings, err := e.Embedder.EmbedDocuments(ctx, texts)
 	if err != nil {
@@ -36,4 +54,5 @@ func (e chromaGoEmbedder) EmbedQuery(ctx context.Context, text string) (*chromat
 
 func (e chromaGoEmbedder) EmbedRecords(ctx context.Context, records []*chromatypes.Record, force bool) error {
 	return chromatypes.EmbedRecordsDefaultImpl(e, ctx, records, force)
+>>>>>>> upstream/main
 }
