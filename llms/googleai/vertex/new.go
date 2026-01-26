@@ -6,10 +6,10 @@ package vertex
 import (
 	"context"
 
-	"cloud.google.com/go/vertexai/genai"
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/googleai/internal/palmclient"
+	"google.golang.org/genai"
 )
 
 // Vertex is a type that represents a Vertex AI API client.
@@ -32,7 +32,12 @@ func New(ctx context.Context, opts ...Option) (*Vertex, error) {
 		opt(&clientOptions)
 	}
 
-	client, err := genai.NewClient(ctx, clientOptions.cloudProject, clientOptions.cloudLocation)
+	config := &genai.ClientConfig{
+		Project:  clientOptions.cloudProject,
+		Location: clientOptions.cloudLocation,
+	}
+
+	client, err := genai.NewClient(ctx, config)
 	if err != nil {
 		return nil, err
 	}

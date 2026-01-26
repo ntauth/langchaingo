@@ -7,14 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log"
 	"strings"
 
-	"cloud.google.com/go/vertexai/genai"
 	"github.com/tmc/langchaingo/internal/util"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
-	"google.golang.org/api/iterator"
+	"google.golang.org/genai"
 )
 
 var (
@@ -54,25 +54,21 @@ func (g *Vertex) GenerateContent(ctx context.Context, messages []llms.MessageCon
 		opt(&opts)
 	}
 
-	model := g.client.GenerativeModel(opts.Model)
-	model.SetCandidateCount(int32(opts.CandidateCount))
-	model.SetMaxOutputTokens(int32(opts.MaxTokens))
-	model.SetTemperature(float32(opts.Temperature))
-	model.SetTopP(float32(opts.TopP))
-	model.SetTopK(float32(opts.TopK))
-	model.StopSequences = opts.StopWords
+	model, err := g.client.Models.Get(ctx, opts.Model, &genai.GetModelConfig{})
+	if err != nil {
+		return nil, err
+	}
 
 	var response *llms.ContentResponse
-	var err error
 
 	if len(messages) == 1 {
 		theMessage := messages[0]
 		if theMessage.Role != schema.ChatMessageTypeHuman {
 			return nil, fmt.Errorf("got %v message role, want human", theMessage.Role)
 		}
-		response, err = generateFromSingleMessage(ctx, model, theMessage.Parts, &opts)
+		response, err = g.generateFromSingleMessage(ctx, model.Name, theMessage.Parts, &opts)
 	} else {
-		response, err = generateFromMessages(ctx, model, messages, &opts)
+		response, err = g.generateFromMessages(ctx, model.Name, messages, &opts)
 	}
 	if err != nil {
 		return nil, err
@@ -94,13 +90,9 @@ func convertCandidates(candidates []*genai.Candidate) (*llms.ContentResponse, er
 
 		if candidate.Content != nil {
 			for _, part := range candidate.Content.Parts {
-				if v, ok := part.(genai.Text); ok {
-					_, err := buf.WriteString(string(v))
-					if err != nil {
-						return nil, err
-					}
-				} else {
-					return nil, ErrUnknownPartInResponse
+				_, err := buf.WriteString(part.Text)
+				if err != nil {
+					return nil, err
 				}
 			}
 		}
@@ -112,7 +104,7 @@ func convertCandidates(candidates []*genai.Candidate) (*llms.ContentResponse, er
 		contentResponse.Choices = append(contentResponse.Choices,
 			&llms.ContentChoice{
 				Content:        buf.String(),
-				StopReason:     candidate.FinishReason.String(),
+				StopReason:     string(candidate.FinishReason),
 				GenerationInfo: metadata,
 			})
 	}
@@ -120,22 +112,22 @@ func convertCandidates(candidates []*genai.Candidate) (*llms.ContentResponse, er
 }
 
 // convertParts converts between a sequence of langchain parts and genai parts.
-func convertParts(parts []llms.ContentPart) ([]genai.Part, error) {
-	convertedParts := make([]genai.Part, 0, len(parts))
+func convertParts(parts []llms.ContentPart) ([]*genai.Part, error) {
+	convertedParts := make([]*genai.Part, 0, len(parts))
 	for _, part := range parts {
-		var out genai.Part
+		var out *genai.Part
 
 		switch p := part.(type) {
 		case llms.TextContent:
-			out = genai.Text(p.Text)
+			out = genai.NewPartFromText(p.Text)
 		case llms.BinaryContent:
-			out = genai.Blob{MIMEType: p.MIMEType, Data: p.Data}
+			out = genai.NewPartFromBytes(p.Data, p.MIMEType)
 		case llms.ImageURLContent:
 			typ, data, err := util.DownloadImageData(p.URL)
 			if err != nil {
 				return nil, err
 			}
-			out = genai.ImageData(typ, data)
+			out = genai.NewPartFromBytes(data, typ)
 		}
 
 		convertedParts = append(convertedParts, out)
@@ -174,16 +166,34 @@ func convertContent(content llms.MessageContent) (*genai.Content, error) {
 
 // generateFromSingleMessage generates content from the parts of a single
 // message.
-func generateFromSingleMessage(ctx context.Context, model *genai.GenerativeModel, parts []llms.ContentPart, opts *llms.CallOptions) (*llms.ContentResponse, error) {
+func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, parts []llms.ContentPart, opts *llms.CallOptions) (*llms.ContentResponse, error) {
 	convertedParts, err := convertParts(parts)
 	if err != nil {
 		return nil, err
 	}
 
+	config := &genai.GenerateContentConfig{
+		MaxOutputTokens: int32(opts.MaxTokens),
+		CandidateCount:  int32(opts.CandidateCount),
+		StopSequences:   opts.StopWords,
+	}
+	if opts.Temperature >= 0 {
+		temperature := float32(opts.Temperature)
+		config.Temperature = &temperature
+	}
+	if opts.TopP >= 0 {
+		topP := float32(opts.TopP)
+		config.TopP = &topP
+	}
+	if opts.TopK >= 0 {
+		topK := float32(opts.TopK)
+		config.TopK = &topK
+	}
+
 	if opts.StreamingFunc == nil {
 		// When no streaming is requested, just call GenerateContent and return
 		// the complete response with a list of candidates.
-		resp, err := model.GenerateContent(ctx, convertedParts...)
+		resp, err := g.client.Models.GenerateContent(ctx, model, []*genai.Content{&genai.Content{Parts: convertedParts}}, config)
 		if err != nil {
 			return nil, err
 		}
@@ -193,11 +203,12 @@ func generateFromSingleMessage(ctx context.Context, model *genai.GenerativeModel
 		}
 		return convertCandidates(resp.Candidates)
 	}
-	iter := model.GenerateContentStream(ctx, convertedParts...)
+	iter := g.client.Models.GenerateContentStream(ctx, model, []*genai.Content{&genai.Content{Parts: convertedParts}}, config)
+
 	return convertAndStreamFromIterator(ctx, iter, opts)
 }
 
-func generateFromMessages(ctx context.Context, model *genai.GenerativeModel, messages []llms.MessageContent, opts *llms.CallOptions) (*llms.ContentResponse, error) {
+func (g *Vertex) generateFromMessages(ctx context.Context, model string, messages []llms.MessageContent, opts *llms.CallOptions) (*llms.ContentResponse, error) {
 	history := make([]*genai.Content, 0, len(messages))
 	for _, mc := range messages {
 		content, err := convertContent(mc)
@@ -217,11 +228,36 @@ func generateFromMessages(ctx context.Context, model *genai.GenerativeModel, mes
 		return nil, fmt.Errorf("got %v message role, want user/human", reqContent.Role)
 	}
 
-	session := model.StartChat()
-	session.History = history
+	config := &genai.GenerateContentConfig{
+		MaxOutputTokens: int32(opts.MaxTokens),
+		CandidateCount:  int32(opts.CandidateCount),
+		StopSequences:   opts.StopWords,
+	}
+	if opts.Temperature >= 0 {
+		temperature := float32(opts.Temperature)
+		config.Temperature = &temperature
+	}
+	if opts.TopP >= 0 {
+		topP := float32(opts.TopP)
+		config.TopP = &topP
+	}
+	if opts.TopK >= 0 {
+		topK := float32(opts.TopK)
+		config.TopK = &topK
+	}
+
+	chat, err := g.client.Chats.Create(ctx, model, config, history)
+	if err != nil {
+		return nil, err
+	}
+
+	var parts []genai.Part
+	for _, part := range reqContent.Parts {
+		parts = append(parts, *part)
+	}
 
 	if opts.StreamingFunc == nil {
-		resp, err := session.SendMessage(ctx, reqContent.Parts...)
+		resp, err := chat.SendMessage(ctx, parts...)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +267,8 @@ func generateFromMessages(ctx context.Context, model *genai.GenerativeModel, mes
 		}
 		return convertCandidates(resp.Candidates)
 	}
-	iter := session.SendMessageStream(ctx, reqContent.Parts...)
+	iter := chat.SendMessageStream(ctx, parts...)
+
 	return convertAndStreamFromIterator(ctx, iter, opts)
 }
 
@@ -240,14 +277,17 @@ func generateFromMessages(ctx context.Context, model *genai.GenerativeModel, mes
 // resulting text into the opts-provided streaming function.
 // Note that this is tricky in the face of multiple
 // candidates, so this code assumes only a single candidate for now.
-func convertAndStreamFromIterator(ctx context.Context, iter *genai.GenerateContentResponseIterator, opts *llms.CallOptions) (*llms.ContentResponse, error) {
+func convertAndStreamFromIterator(ctx context.Context, it iter.Seq2[*genai.GenerateContentResponse, error], opts *llms.CallOptions) (*llms.ContentResponse, error) {
 	candidate := &genai.Candidate{
 		Content: &genai.Content{},
 	}
+
+	next, stop := iter.Pull2(it)
+	defer stop()
 DoStream:
 	for {
-		resp, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
+		resp, err, hasNext := next()
+		if !hasNext {
 			break DoStream
 		}
 		if err != nil {
@@ -269,10 +309,8 @@ DoStream:
 		candidate.CitationMetadata = respCandidate.CitationMetadata
 
 		for _, part := range respCandidate.Content.Parts {
-			if text, ok := part.(genai.Text); ok {
-				if opts.StreamingFunc(ctx, []byte(text)) != nil {
-					break DoStream
-				}
+			if opts.StreamingFunc(ctx, []byte(part.Text)) != nil {
+				break DoStream
 			}
 		}
 	}
