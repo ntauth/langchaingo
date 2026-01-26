@@ -1,5 +1,7 @@
 package vertex
 
+import "cloud.google.com/go/auth"
+
 // options is a set of options for GoogleAI clients.
 type options struct {
 	cloudProject          string
@@ -11,6 +13,7 @@ type options struct {
 	defaultTemperature    float64
 	defaultTopK           int
 	defaultTopP           float64
+	credentialsOptions    *auth.CredentialsOptions
 }
 
 func defaultOptions() options {
@@ -24,6 +27,7 @@ func defaultOptions() options {
 		defaultTemperature:    0.5,
 		defaultTopK:           3,
 		defaultTopP:           0.95,
+		credentialsOptions:    nil,
 	}
 }
 
@@ -56,5 +60,12 @@ func WithDefaultModel(defaultModel string) Option {
 func WithDefaultEmbeddingModel(defaultEmbeddingModel string) Option {
 	return func(opts *options) {
 		opts.defaultEmbeddingModel = defaultEmbeddingModel
+	}
+}
+
+// WithCredentialsOptions passes the credentials options to the client.
+func WithCredentialsOptions(credentialsOptions *auth.CredentialsOptions) Option {
+	return func(opts *options) {
+		opts.credentialsOptions = credentialsOptions
 	}
 }

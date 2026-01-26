@@ -2,27 +2,35 @@ package vertex
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/tmc/langchaingo/llms/googleai/internal/palmclient"
+	"google.golang.org/genai"
 )
 
 // CreateEmbedding creates embeddings from texts.
 func (g *Vertex) CreateEmbedding(ctx context.Context, texts []string) ([][]float32, error) {
-	embeddings, err := g.palmClient.CreateEmbedding(ctx, &palmclient.EmbeddingRequest{
-		Input: texts,
-	})
+	var contents []*genai.Content
+	for _, text := range texts {
+		contents = append(contents, genai.NewContentFromText(text, genai.RoleUser))
+	}
+	res, err := g.client.Models.EmbedContent(
+		ctx,
+		g.opts.defaultEmbeddingModel,
+		contents,
+		&genai.EmbedContentConfig{},
+	)
 	if err != nil {
 		return [][]float32{}, err
 	}
 
-	if len(embeddings) == 0 {
-		return nil, errors.New("empty response")
-	}
-	if len(texts) != len(embeddings) {
-		return embeddings, fmt.Errorf("returned %d embeddings for %d texts", len(embeddings), len(texts))
+	embeddingValues := make([][]float32, 0, len(res.Embeddings))
+	for _, embedding := range res.Embeddings {
+		embeddingValues = append(embeddingValues, embedding.Values)
 	}
 
-	return embeddings, nil
+	if len(texts) != len(embeddingValues) {
+		return embeddingValues, fmt.Errorf("returned %d embeddings for %d texts", len(embeddingValues), len(texts))
+	}
+
+	return embeddingValues, nil
 }

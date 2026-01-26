@@ -20,7 +20,6 @@ require (
 require (
 	cloud.google.com/go v0.116.0 // indirect
 	cloud.google.com/go/ai v0.3.0 // indirect
-	cloud.google.com/go/auth v0.9.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	cloud.google.com/go/iam v1.2.0 // indirect
@@ -176,6 +175,7 @@ require (
 
 require (
 	cloud.google.com/go/aiplatform v1.68.0
+	cloud.google.com/go/auth v0.9.3
 	github.com/AssemblyAI/assemblyai-go-sdk v1.3.0
 	github.com/Code-Hex/go-generics-cache v1.3.1
 	github.com/Masterminds/sprig/v3 v3.2.3
