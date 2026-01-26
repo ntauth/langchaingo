@@ -27,6 +27,7 @@ func New(ctx context.Context, opts ...Option) (*Vertex, error) {
 	}
 
 	config := &genai.ClientConfig{
+		Backend:     genai.BackendVertexAI,
 		Project:     clientOptions.cloudProject,
 		Location:    clientOptions.cloudLocation,
 		Credentials: clientOptions.credentials,
