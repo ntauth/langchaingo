@@ -27,8 +27,9 @@ func New(ctx context.Context, opts ...Option) (*Vertex, error) {
 	}
 
 	config := &genai.ClientConfig{
-		Project:  clientOptions.cloudProject,
-		Location: clientOptions.cloudLocation,
+		Project:     clientOptions.cloudProject,
+		Location:    clientOptions.cloudLocation,
+		Credentials: clientOptions.credentials,
 	}
 
 	client, err := genai.NewClient(ctx, config)

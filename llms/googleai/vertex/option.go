@@ -13,7 +13,7 @@ type options struct {
 	defaultTemperature    float64
 	defaultTopK           int
 	defaultTopP           float64
-	credentialsOptions    *auth.CredentialsOptions
+	credentials           *auth.Credentials
 }
 
 func defaultOptions() options {
@@ -27,7 +27,7 @@ func defaultOptions() options {
 		defaultTemperature:    0.5,
 		defaultTopK:           3,
 		defaultTopP:           0.95,
-		credentialsOptions:    nil,
+		credentials:           nil,
 	}
 }
 
@@ -64,8 +64,8 @@ func WithDefaultEmbeddingModel(defaultEmbeddingModel string) Option {
 }
 
 // WithCredentialsOptions passes the credentials options to the client.
-func WithCredentialsOptions(credentialsOptions *auth.CredentialsOptions) Option {
+func WithCredentials(credentialsOptions *auth.CredentialsOptions) Option {
 	return func(opts *options) {
-		opts.credentialsOptions = credentialsOptions
+		opts.credentials = auth.NewCredentials(credentialsOptions)
 	}
 }
