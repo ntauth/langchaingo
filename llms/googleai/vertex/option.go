@@ -4,30 +4,32 @@ import "cloud.google.com/go/auth"
 
 // options is a set of options for GoogleAI clients.
 type options struct {
-	cloudProject          string
-	cloudLocation         string
-	defaultModel          string
-	defaultEmbeddingModel string
-	defaultCandidateCount int
-	defaultMaxTokens      int
-	defaultTemperature    float64
-	defaultTopK           int
-	defaultTopP           float64
-	credentials           *auth.Credentials
+	cloudProject                   string
+	cloudLocation                  string
+	defaultModel                   string
+	defaultEmbeddingModel          string
+	defaultEmbeddingDimensionality *int32
+	defaultCandidateCount          int
+	defaultMaxTokens               int
+	defaultTemperature             float64
+	defaultTopK                    int
+	defaultTopP                    float64
+	credentials                    *auth.Credentials
 }
 
 func defaultOptions() options {
 	return options{
-		cloudProject:          "",
-		cloudLocation:         "",
-		defaultModel:          "gemini-pro",
-		defaultEmbeddingModel: "embedding-001",
-		defaultCandidateCount: 1,
-		defaultMaxTokens:      256,
-		defaultTemperature:    0.5,
-		defaultTopK:           3,
-		defaultTopP:           0.95,
-		credentials:           nil,
+		cloudProject:                   "",
+		cloudLocation:                  "",
+		defaultModel:                   "gemini-pro",
+		defaultEmbeddingModel:          "embedding-001",
+		defaultEmbeddingDimensionality: nil,
+		defaultCandidateCount:          1,
+		defaultMaxTokens:               256,
+		defaultTemperature:             0.5,
+		defaultTopK:                    3,
+		defaultTopP:                    0.95,
+		credentials:                    nil,
 	}
 }
 
@@ -60,6 +62,14 @@ func WithDefaultModel(defaultModel string) Option {
 func WithDefaultEmbeddingModel(defaultEmbeddingModel string) Option {
 	return func(opts *options) {
 		opts.defaultEmbeddingModel = defaultEmbeddingModel
+	}
+}
+
+// WithDefaultEmbeddingDimensionality passes a default embedding dimensionality to the client. This
+// dimensionality is used if not explicitly provided in specific client invocations.
+func WithDefaultEmbeddingDimensionality(defaultEmbeddingDimensionality int32) Option {
+	return func(opts *options) {
+		opts.defaultEmbeddingDimensionality = &defaultEmbeddingDimensionality
 	}
 }
 

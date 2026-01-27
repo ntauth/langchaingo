@@ -17,7 +17,9 @@ func (g *Vertex) CreateEmbedding(ctx context.Context, texts []string) ([][]float
 		ctx,
 		g.opts.defaultEmbeddingModel,
 		contents,
-		&genai.EmbedContentConfig{},
+		&genai.EmbedContentConfig{
+			OutputDimensionality: g.opts.defaultEmbeddingDimensionality,
+		},
 	)
 	if err != nil {
 		return [][]float32{}, err
