@@ -193,7 +193,7 @@ func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, pa
 	if opts.StreamingFunc == nil {
 		// When no streaming is requested, just call GenerateContent and return
 		// the complete response with a list of candidates.
-		resp, err := g.client.Models.GenerateContent(ctx, model, []*genai.Content{&genai.Content{Parts: convertedParts}}, config)
+		resp, err := g.client.Models.GenerateContent(ctx, model, []*genai.Content{genai.NewContentFromParts(convertedParts, genai.RoleUser)}, config)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +203,7 @@ func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, pa
 		}
 		return convertCandidates(resp.Candidates)
 	}
-	iter := g.client.Models.GenerateContentStream(ctx, model, []*genai.Content{&genai.Content{Parts: convertedParts}}, config)
+	iter := g.client.Models.GenerateContentStream(ctx, model, []*genai.Content{genai.NewContentFromParts(convertedParts, genai.RoleUser)}, config)
 
 	return convertAndStreamFromIterator(ctx, iter, opts)
 }
