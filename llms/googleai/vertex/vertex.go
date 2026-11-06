@@ -18,10 +18,10 @@ import (
 )
 
 var (
-	ErrNoContentInResponse    = errors.New("no content in generation response")
-	ErrUnknownPartInResponse  = errors.New("unknown part type in generation response")
-	ErrInvalidMimeType        = errors.New("invalid mime type on content")
-	ErrSystemRoleNotSupported = errors.New("system role isn't supporeted yet")
+	ErrNoContentInResponse   = errors.New("no content in generation response")
+	ErrUnknownPartInResponse = errors.New("unknown part type in generation response")
+	ErrInvalidMimeType       = errors.New("invalid mime type on content")
+	ErrNoNonSystemMessages   = errors.New("no non-system messages to generate from")
 )
 
 const (
@@ -61,14 +61,22 @@ func (g *Vertex) GenerateContent(ctx context.Context, messages []llms.MessageCon
 
 	var response *llms.ContentResponse
 
+	systemText, messages, err := splitSystemMessages(messages)
+	if err != nil {
+		return nil, err
+	}
+	if len(messages) == 0 {
+		return nil, ErrNoNonSystemMessages
+	}
+
 	if len(messages) == 1 {
 		theMessage := messages[0]
 		if theMessage.Role != schema.ChatMessageTypeHuman {
 			return nil, fmt.Errorf("got %v message role, want human", theMessage.Role)
 		}
-		response, err = g.generateFromSingleMessage(ctx, model.Name, theMessage.Parts, &opts)
+		response, err = g.generateFromSingleMessage(ctx, model.Name, systemText, theMessage.Parts, &opts)
 	} else {
-		response, err = g.generateFromMessages(ctx, model.Name, messages, &opts)
+		response, err = g.generateFromMessages(ctx, model.Name, systemText, messages, &opts)
 	}
 	if err != nil {
 		return nil, err
@@ -135,6 +143,28 @@ func convertParts(parts []llms.ContentPart) ([]*genai.Part, error) {
 	return convertedParts, nil
 }
 
+// splitSystemMessages separates system messages from the rest. The text of all
+// system messages is concatenated (newline separated) into a single system
+// instruction; it is empty when there are none.
+func splitSystemMessages(messages []llms.MessageContent) (string, []llms.MessageContent, error) {
+	var system []string
+	rest := make([]llms.MessageContent, 0, len(messages))
+	for _, mc := range messages {
+		if mc.Role != schema.ChatMessageTypeSystem {
+			rest = append(rest, mc)
+			continue
+		}
+		for _, part := range mc.Parts {
+			text, ok := part.(llms.TextContent)
+			if !ok {
+				return "", nil, fmt.Errorf("system message supports only text parts, got %T", part)
+			}
+			system = append(system, text.Text)
+		}
+	}
+	return strings.Join(system, "\n"), rest, nil
+}
+
 // convertContent converts between a langchain MessageContent and genai content.
 func convertContent(content llms.MessageContent) (*genai.Content, error) {
 	parts, err := convertParts(content.Parts)
@@ -147,8 +177,6 @@ func convertContent(content llms.MessageContent) (*genai.Content, error) {
 	}
 
 	switch content.Role {
-	case schema.ChatMessageTypeSystem:
-		return nil, ErrSystemRoleNotSupported
 	case schema.ChatMessageTypeAI:
 		c.Role = RoleModel
 	case schema.ChatMessageTypeHuman:
@@ -166,7 +194,7 @@ func convertContent(content llms.MessageContent) (*genai.Content, error) {
 
 // generateFromSingleMessage generates content from the parts of a single
 // message.
-func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, parts []llms.ContentPart, opts *llms.CallOptions) (*llms.ContentResponse, error) {
+func (g *Vertex) generateFromSingleMessage(ctx context.Context, model, systemText string, parts []llms.ContentPart, opts *llms.CallOptions) (*llms.ContentResponse, error) {
 	convertedParts, err := convertParts(parts)
 	if err != nil {
 		return nil, err
@@ -189,6 +217,12 @@ func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, pa
 		topK := float32(opts.TopK)
 		config.TopK = &topK
 	}
+	if systemText != "" {
+		config.SystemInstruction = genai.NewContentFromText(systemText, genai.RoleUser)
+	}
+	if opts.JSONMode {
+		config.ResponseMIMEType = "application/json"
+	}
 
 	if opts.StreamingFunc == nil {
 		// When no streaming is requested, just call GenerateContent and return
@@ -208,7 +242,7 @@ func (g *Vertex) generateFromSingleMessage(ctx context.Context, model string, pa
 	return convertAndStreamFromIterator(ctx, iter, opts)
 }
 
-func (g *Vertex) generateFromMessages(ctx context.Context, model string, messages []llms.MessageContent, opts *llms.CallOptions) (*llms.ContentResponse, error) {
+func (g *Vertex) generateFromMessages(ctx context.Context, model, systemText string, messages []llms.MessageContent, opts *llms.CallOptions) (*llms.ContentResponse, error) {
 	history := make([]*genai.Content, 0, len(messages))
 	for _, mc := range messages {
 		content, err := convertContent(mc)
@@ -244,6 +278,12 @@ func (g *Vertex) generateFromMessages(ctx context.Context, model string, message
 	if opts.TopK >= 0 {
 		topK := float32(opts.TopK)
 		config.TopK = &topK
+	}
+	if systemText != "" {
+		config.SystemInstruction = genai.NewContentFromText(systemText, genai.RoleUser)
+	}
+	if opts.JSONMode {
+		config.ResponseMIMEType = "application/json"
 	}
 
 	chat, err := g.client.Chats.Create(ctx, model, config, history)
